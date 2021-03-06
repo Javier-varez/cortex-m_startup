@@ -44,20 +44,25 @@ void Reset_Handler() {
     );
 }
 
+extern "C" __attribute__((noreturn)) void DefaultISR() {
+    volatile int32_t exception_number;
+    asm("mrs %[ipsr_reg], ipsr   \n" : [ipsr_reg] "=r" (exception_number));
+
+    exception_number -= 16;
+    if (*CORE_DEBUG_DHCSR & (1 << 0)) {
+        // We trigger a breakpoint if we are debugging to warn the user
+        // about the default ISR being reached.
+        asm("bkpt #0");
+    }
+
+    while(true) { }
+}
+
 #define DEFINE_DEFAULT_ISR(name) \
     extern "C" \
-    __attribute__((interrupt)) \
-    __attribute__((weak)) \
-    __attribute__((noreturn)) \
-    void name() { \
-        volatile int32_t exception_number; \
-        asm("mrs %[ipsr_reg], ipsr   \n" \
-             : [ipsr_reg] "=r" (exception_number)); \
-        exception_number -= 16; \
-        if (*CORE_DEBUG_DHCSR & (1 << 0)) { \
-            asm("bkpt #0"); \
-        } \
-        while(true); \
+    __attribute__((weak, noreturn)) \
+    inline void name() { \
+      DefaultISR(); \
     }
 
 DEFINE_DEFAULT_ISR(NMI_Handler)
